@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Browser-based Spanish medical speech learning activity using Web Speech APIs." />
+  <title>Spanish Medical Speech Activity</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <section id="permissionScreen" class="screen permission-screen" aria-labelledby="permissionTitle">
+      <div class="hero-card">
+        <div class="brand-mark" aria-hidden="true">+</div>
+        <p class="eyebrow">Healthcare Spanish Learning</p>
+        <h1 id="permissionTitle">Spanish Medical Speech Activity</h1>
+        <p class="hero-copy">
+          Practice Spanish medical terms by listening, repeating, and checking your pronunciation directly in Chrome.
+        </p>
+
+        <div class="notice-card">
+          <strong>Browser notice</strong>
+          <p>
+            This activity uses your browser microphone, text-to-speech, and Chrome speech recognition. A secure context
+            is required for microphone access.
+          </p>
+        </div>
+
+        <button id="enableMicBtn" class="btn btn-primary btn-large" type="button">
+          Enable Microphone
+        </button>
+
+        <div id="permissionStatus" class="status-box" role="status" aria-live="polite">
+          Microphone permission is required before the activity starts.
+        </div>
+      </div>
+    </section>
+
+    <section id="learningScreen" class="screen learning-screen hidden" aria-labelledby="activityTitle">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">Listen • Repeat • Improve</p>
+          <h1 id="activityTitle">Spanish Medical Terms</h1>
+          <p class="subtitle">Listen, repeat, and check your pronunciation</p>
+        </div>
+        <div class="header-badge" aria-hidden="true">ES</div>
+      </header>
+
+      <div class="support-panel" aria-label="Browser and speech status">
+        <div class="chip" id="chromeChip">Chrome: checking</div>
+        <div class="chip chip-success" id="micChip">Microphone: ready</div>
+        <div class="chip" id="recognitionChip">Spanish recognition: checking</div>
+      </div>
+
+      <div id="globalMessage" class="global-message hidden" role="status" aria-live="polite"></div>
+
+      <div id="installBanner" class="install-banner hidden" role="dialog" aria-labelledby="installTitle" aria-describedby="installDesc">
+        <div>
+          <h2 id="installTitle">Spanish local recognition pack</h2>
+          <p id="installDesc">
+            Spanish local recognition pack is not available. You can ask Chrome to install it, or continue with browser-managed recognition.
+          </p>
+        </div>
+        <div class="install-actions">
+          <button id="installPackBtn" class="btn btn-secondary" type="button">Install Spanish Pack</button>
+          <button id="continueBrowserBtn" class="btn btn-ghost" type="button">Continue with browser recognition</button>
+        </div>
+      </div>
+
+      <main>
+        <div id="termsGrid" class="terms-grid" aria-live="polite"></div>
+      </main>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
