@@ -59,19 +59,6 @@ For desktop testing, `localhost` is usually treated as secure by Chrome.
 
 For actual mobile Chrome microphone testing, host the page on HTTPS or use a secure local tunnel.
 
-
-## Android Chrome testing notes
-
-For Android Chrome, do not open the page through `file://`. Also note that opening a laptop server through a LAN IP such as `http://192.168.x.x:8080` is usually **not** a secure context, so microphone permission may be blocked.
-
-For real Android testing, use one of these options:
-
-- Host the folder on an HTTPS page.
-- Use a secure tunnel such as Cloudflare Tunnel, ngrok, or a similar HTTPS tunnel.
-- Test on desktop Chrome using `http://localhost:8080` first, because localhost is normally treated as secure.
-
-Chrome Android support for `webkitSpeechRecognition` can vary by device, OS version, Chrome version, language settings, and network availability. The app handles unsupported or failed recognition gracefully, but recognition accuracy and local speech-pack availability are controlled by Chrome, not by this static app.
-
 ## Browser requirements
 
 Recommended browser:
@@ -180,3 +167,9 @@ Important constraints:
 - SCORM offline mode may not guarantee SpeechRecognition availability.
 - Browser speech packs cannot be embedded in SCORM.
 - Browser-managed APIs must handle language pack checking and installation gracefully.
+
+## Android Chrome troubleshooting
+
+If speech is detected but no transcript appears on Android Chrome, this usually means Chrome captured microphone audio but did not return a final Spanish `SpeechRecognition` transcript. This build keeps the best interim transcript as a fallback and also records the learner's latest attempt locally in memory.
+
+Each term card includes **Play my voice** after the first attempt. This helps confirm whether the microphone actually captured the learner's voice. The recording is not uploaded anywhere and is overwritten by the next attempt for that term. It is not persisted after a page refresh.

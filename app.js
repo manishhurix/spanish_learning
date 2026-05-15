@@ -38,7 +38,10 @@ const AppState = {
   activeRecognition: null,
   activeStream: null,
   volumeMonitor: null,
-  speechTimeoutId: null
+  speechTimeoutId: null,
+  activeRecorder: null,
+  recordedChunks: [],
+  lastRecordings: {}
 };
 
 const DOM = {};
@@ -230,7 +233,7 @@ async function checkAndInstallSpanishSpeechPack() {
       return;
     }
 
-    if (availability === "downloadable" || availability === "downloading" || availability === "unavailable" || availability === false) {
+    if (availability === "downloadable" || availability === "unavailable" || availability === false) {
       AppState.recognitionMode = "browser-managed";
       updateRecognitionChip();
       DOM.installBanner.classList.remove("hidden");
@@ -261,10 +264,7 @@ async function installSpanishPack() {
   DOM.installPackBtn.textContent = "Installing...";
 
   try {
-    const installed = await SpeechRecognitionCtor.install({
-      langs: ["es-ES"],
-      processLocally: true
-    });
+    const installed = await SpeechRecognitionCtor.install({ langs: ["es-ES"] });
     if (installed === true || installed === "installed" || installed === "available") {
       showGlobalMessage("Spanish pack installed. Reloading the page so Chrome can apply the change...", "success");
       setTimeout(() => location.reload(), 1500);
@@ -316,6 +316,9 @@ function renderTerms(terms) {
         <button class="btn btn-secondary try-btn" type="button" data-term-id="${term.id}" ${AppState.recognitionMode === "unavailable" ? "disabled" : ""}>
           Now you try
         </button>
+        <button class="btn btn-ghost playback-btn" type="button" data-term-id="${term.id}" ${AppState.lastRecordings[term.id] ? "" : "disabled"}>
+          Play my voice
+        </button>
       </div>
 
       <div class="result-area" id="result-${term.id}" aria-live="polite">
@@ -337,6 +340,12 @@ function renderTerms(terms) {
     button.addEventListener("click", () => {
       const term = getTermById(Number(button.dataset.termId));
       listenAndEvaluate(term);
+    });
+  });
+
+  document.querySelectorAll(".playback-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      playLastRecording(Number(button.dataset.termId));
     });
   });
 }
@@ -465,7 +474,8 @@ async function listenAndEvaluate(term) {
   let stream;
   let volumeMonitor;
   let finalTranscript = "";
-  let latestInterimTranscript = "";
+  let interimTranscriptCache = "";
+  let bestTranscript = "";
   let bestConfidence = 0;
 
   try {
@@ -473,6 +483,7 @@ async function listenAndEvaluate(term) {
     AppState.activeStream = stream;
     volumeMonitor = await createVolumeMonitor(stream);
     AppState.volumeMonitor = volumeMonitor;
+    startAttemptRecording(stream, term.id);
 
     const recognition = new SpeechRecognitionCtor();
     AppState.activeRecognition = recognition;
@@ -494,7 +505,13 @@ async function listenAndEvaluate(term) {
           const result = event.results[i];
           const transcript = result[0] ? result[0].transcript : "";
           const confidence = result[0] ? result[0].confidence || 0 : 0;
-          bestConfidence = Math.max(bestConfidence, confidence);
+
+          // Android Chrome sometimes emits useful interim text but ends before marking it final.
+          // Keep the best/latest transcript as a fallback so speech is not discarded.
+          if (transcript && (confidence >= bestConfidence || !bestTranscript)) {
+            bestTranscript = transcript.trim();
+            bestConfidence = confidence;
+          }
 
           if (result.isFinal) {
             finalTranscript += ` ${transcript}`;
@@ -503,8 +520,8 @@ async function listenAndEvaluate(term) {
           }
         }
 
-        latestInterimTranscript = interimTranscript.trim() || latestInterimTranscript;
-        updateLiveResult(term.id, "Listening...", finalTranscript.trim() || latestInterimTranscript, true);
+        interimTranscriptCache = interimTranscript.trim() || interimTranscriptCache;
+        updateLiveResult(term.id, "Listening...", finalTranscript || interimTranscriptCache || bestTranscript, true);
       };
 
       recognition.onerror = (event) => {
@@ -529,8 +546,9 @@ async function listenAndEvaluate(term) {
     const outcome = await recognitionPromise;
     clearTimeout(AppState.speechTimeoutId);
 
+    await stopAttemptRecording(term.id);
     const monitorStats = volumeMonitor.getStats();
-    const cleanTranscript = finalTranscript.trim() || latestInterimTranscript.trim();
+    const cleanTranscript = (finalTranscript || bestTranscript || interimTranscriptCache).trim();
 
     if (!monitorStats.hasDetectedVoice && !cleanTranscript) {
       const noSpeechResult = createNoSpeechResult(term, "No clear speech detected. Please try again and speak closer to the microphone.");
@@ -576,14 +594,6 @@ async function createVolumeMonitor(stream) {
   }
 
   const audioContext = new AudioContextCtor();
-  if (audioContext.state === "suspended" && typeof audioContext.resume === "function") {
-    try {
-      await audioContext.resume();
-    } catch (error) {
-      // Some mobile browsers keep AudioContext suspended until the next user gesture.
-      // SpeechRecognition remains the primary signal, so volume monitoring can continue best-effort.
-    }
-  }
   const source = audioContext.createMediaStreamSource(stream);
   const analyser = audioContext.createAnalyser();
   analyser.fftSize = 2048;
@@ -839,10 +849,12 @@ function getRecognitionErrorMessage(errorCode) {
 }
 
 function setTermButtonsDisabled(disabled, activeTermId) {
-  document.querySelectorAll(".play-btn, .try-btn").forEach((button) => {
+  document.querySelectorAll(".play-btn, .try-btn, .playback-btn").forEach((button) => {
     const termId = Number(button.dataset.termId);
-    button.disabled = disabled || (button.classList.contains("try-btn") && AppState.recognitionMode === "unavailable");
-    if (termId === activeTermId && button.classList.contains("try-btn")) {
+    const isTry = button.classList.contains("try-btn");
+    const isPlayback = button.classList.contains("playback-btn");
+    button.disabled = disabled || (isTry && AppState.recognitionMode === "unavailable") || (isPlayback && !AppState.lastRecordings[termId]);
+    if (termId === activeTermId && isTry) {
       button.textContent = disabled ? "Listening..." : "Now you try";
     }
   });
@@ -865,6 +877,14 @@ function cleanupListeningResources() {
     AppState.speechTimeoutId = null;
   }
 
+  if (AppState.activeRecorder && AppState.activeRecorder.state !== "inactive") {
+    try {
+      AppState.activeRecorder.stop();
+    } catch (error) {
+      // Recorder may already be stopped. Ignore safely.
+    }
+  }
+
   if (AppState.volumeMonitor) {
     AppState.volumeMonitor.stop();
     AppState.volumeMonitor = null;
@@ -876,6 +896,106 @@ function cleanupListeningResources() {
   }
 
   AppState.activeRecognition = null;
+}
+
+function startAttemptRecording(stream, termId) {
+  if (typeof MediaRecorder === "undefined") return;
+
+  try {
+    AppState.recordedChunks = [];
+    const recorder = new MediaRecorder(stream);
+    AppState.activeRecorder = recorder;
+
+    recorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        AppState.recordedChunks.push(event.data);
+      }
+    };
+
+    recorder.onstop = () => {
+      if (!AppState.recordedChunks.length) return;
+      const mimeType = recorder.mimeType || "audio/webm";
+      const blob = new Blob(AppState.recordedChunks, { type: mimeType });
+
+      if (AppState.lastRecordings[termId]) {
+        URL.revokeObjectURL(AppState.lastRecordings[termId].url);
+      }
+
+      AppState.lastRecordings[termId] = {
+        blob,
+        url: URL.createObjectURL(blob),
+        createdAt: new Date().toISOString()
+      };
+
+      const playbackBtn = document.querySelector(`.playback-btn[data-term-id="${termId}"]`);
+      if (playbackBtn) playbackBtn.disabled = false;
+    };
+
+    recorder.start();
+  } catch (error) {
+    // Recording playback is a helper feature. SpeechRecognition can continue without it.
+    AppState.activeRecorder = null;
+    AppState.recordedChunks = [];
+  }
+}
+
+function stopAttemptRecording(termId) {
+  return new Promise((resolve) => {
+    const recorder = AppState.activeRecorder;
+    if (!recorder || recorder.state === "inactive") {
+      resolve();
+      return;
+    }
+
+    const previousOnStop = recorder.onstop;
+    recorder.onstop = (event) => {
+      if (typeof previousOnStop === "function") previousOnStop(event);
+      AppState.activeRecorder = null;
+      resolve();
+    };
+
+    try {
+      recorder.stop();
+    } catch (error) {
+      AppState.activeRecorder = null;
+      resolve();
+    }
+
+    setTimeout(resolve, 800);
+  });
+}
+
+function playLastRecording(termId) {
+  const recording = AppState.lastRecordings[termId];
+  if (!recording) {
+    showGlobalMessage("No recording is available for this term yet. Tap “Now you try” first.", "warning");
+    return;
+  }
+
+  window.speechSynthesis?.cancel?.();
+  const button = document.querySelector(`.playback-btn[data-term-id="${termId}"]`);
+  const originalText = button ? button.textContent : "Play my voice";
+  const audio = new Audio(recording.url);
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Playing...";
+  }
+
+  audio.onended = audio.onerror = () => {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  };
+
+  audio.play().catch(() => {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+    showGlobalMessage("Chrome could not play the latest recording. Please try recording again.", "warning");
+  });
 }
 
 function getSpeechRecognitionCtor() {

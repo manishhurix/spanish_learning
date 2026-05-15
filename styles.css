@@ -520,3 +520,16 @@ h1 {
     width: 100%;
   }
 }
+
+/* Three-button action layout when recording playback is enabled. */
+.card-actions {
+  grid-template-columns: 1fr 1fr;
+}
+.card-actions .playback-btn {
+  grid-column: 1 / -1;
+}
+@media (min-width: 720px) {
+  .card-actions .playback-btn {
+    grid-column: 1 / -1;
+  }
+}
