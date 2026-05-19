@@ -441,12 +441,40 @@ function renderResultHtml(termId, latestAttempt) {
   const missing = latestAttempt.missingWords && latestAttempt.missingWords.length ? latestAttempt.missingWords.join(", ") : "—";
   const extra = latestAttempt.extraWords && latestAttempt.extraWords.length ? latestAttempt.extraWords.join(", ") : "—";
 
+  const isSentence = AppState.activeTab === "sentences";
+  const rubricsHtml = latestAttempt.rubrics ? `
+    <div class="rubrics-container">
+      <div class="rubric-row">
+        <div class="rubric-header">
+          <span class="rubric-label">Pronunciation</span>
+          <span class="rubric-value">${latestAttempt.rubrics.pronunciation}%</span>
+        </div>
+        <div class="rubric-track"><div class="rubric-fill" style="width: ${latestAttempt.rubrics.pronunciation}%"></div></div>
+      </div>
+      <div class="rubric-row">
+        <div class="rubric-header">
+          <span class="rubric-label">Clarity</span>
+          <span class="rubric-value">${latestAttempt.rubrics.clarity}%</span>
+        </div>
+        <div class="rubric-track"><div class="rubric-fill" style="width: ${latestAttempt.rubrics.clarity}%"></div></div>
+      </div>
+      <div class="rubric-row">
+        <div class="rubric-header">
+          <span class="rubric-label">${isSentence ? "Completeness" : "Word Purity"}</span>
+          <span class="rubric-value">${isSentence ? latestAttempt.rubrics.completeness : latestAttempt.rubrics.purity}%</span>
+        </div>
+        <div class="rubric-track"><div class="rubric-fill" style="width: ${isSentence ? latestAttempt.rubrics.completeness : latestAttempt.rubrics.purity}%"></div></div>
+      </div>
+    </div>
+  ` : '';
+
   return `
     <div class="result-heading">
       <span class="status-label ${latestAttempt.status}">${statusText} • ${latestAttempt.score}%</span>
       <span class="attempt-count">Attempts: ${attempts.length}</span>
     </div>
     <div class="score-track" aria-label="Score"><div class="score-fill" style="width: ${latestAttempt.score}%"></div></div>
+    ${rubricsHtml}
     <p class="feedback-message">${escapeHtml(latestAttempt.message)}</p>
     <p class="transcript">Recognized speech: <strong>${escapeHtml(latestAttempt.recognizedText || "—")}</strong></p>
     <p class="hints">Missing words: ${escapeHtml(missing)} | Extra words: ${escapeHtml(extra)}</p>
@@ -549,6 +577,7 @@ async function listenAndEvaluate(term) {
   let interimTranscriptCache = "";
   let bestTranscript = "";
   let bestConfidence = 0;
+  let smartSilenceTimer = null;
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -572,6 +601,11 @@ async function listenAndEvaluate(term) {
 
     const recognitionPromise = new Promise((resolve) => {
       recognition.onresult = (event) => {
+        if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
+        smartSilenceTimer = setTimeout(() => {
+          try { recognition.stop(); } catch (e) {}
+        }, 2000);
+
         let interimTranscript = "";
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
           const result = event.results[i];
@@ -597,10 +631,12 @@ async function listenAndEvaluate(term) {
       };
 
       recognition.onerror = (event) => {
+        if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
         resolve({ type: "error", error: event.error });
       };
 
       recognition.onend = () => {
+        if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
         resolve({ type: "end" });
       };
     });
@@ -618,6 +654,7 @@ async function listenAndEvaluate(term) {
 
     const outcome = await recognitionPromise;
     clearTimeout(AppState.speechTimeoutId);
+    if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
 
     await stopAttemptRecording(term.id);
     const monitorStats = volumeMonitor.getStats();
@@ -644,6 +681,7 @@ async function listenAndEvaluate(term) {
 
     const evaluation = evaluateSpeech(term.spanish, term.aliases, cleanTranscript);
     evaluation.confidence = bestConfidence;
+    evaluation.rubrics.clarity = Math.round(bestConfidence * 100);
     updateResultUI(term.id, evaluation, true);
   } catch (error) {
     const result = createNoSpeechResult(term, getMicPermissionMessage(error));
@@ -747,7 +785,8 @@ function evaluateSpeech(expectedTerm, aliases, recognizedText) {
       recognizedNormalized,
       missingWords: expectedNormalized.split(" ").filter(Boolean),
       extraWords: [],
-      message: "No clear speech detected. Please try again."
+      message: "No clear speech detected. Please try again.",
+      rubrics: { pronunciation: 0, completeness: 0, purity: 0 }
     };
   }
 
@@ -759,7 +798,8 @@ function evaluateSpeech(expectedTerm, aliases, recognizedText) {
       recognizedNormalized,
       missingWords: [],
       extraWords: [],
-      message: "Excellent. Your pronunciation matched the expected term."
+      message: "Excellent. Your pronunciation matched the expected term.",
+      rubrics: { pronunciation: 100, completeness: 100, purity: 100 }
     };
   }
 
@@ -793,7 +833,12 @@ function evaluateSpeech(expectedTerm, aliases, recognizedText) {
     recognizedNormalized,
     missingWords: best.missingWords,
     extraWords: best.extraWords,
-    message
+    message,
+    rubrics: {
+      pronunciation: Math.round(best.similarityScore || score),
+      completeness: Math.round(best.overlapScore || 100),
+      purity: Math.max(0, 100 - (best.extraWords.length * 25))
+    }
   };
 }
 
@@ -820,7 +865,7 @@ function scoreAgainstTarget(target, recognized) {
     score = similarityScore;
   }
 
-  return { score, missingWords, extraWords };
+  return { score, missingWords, extraWords, similarityScore, overlapScore };
 }
 
 function levenshteinDistance(a, b) {
@@ -872,6 +917,7 @@ function updateResultUI(termId, result, shouldSave) {
       missingWords: result.missingWords || [],
       extraWords: result.extraWords || [],
       message: result.message,
+      rubrics: result.rubrics || null,
       timestamp: new Date().toISOString()
     });
     saveAttempts();
@@ -892,8 +938,8 @@ function saveAttempts() {
 
 function loadAttemptsFromStorage() {
   try {
-    const stored = localStorage.getItem("spanishMedicalSpeechAttempts");
-    AppState.attempts = stored ? JSON.parse(stored) : {};
+    localStorage.removeItem("spanishMedicalSpeechAttempts");
+    AppState.attempts = {};
   } catch (error) {
     AppState.attempts = {};
   }
