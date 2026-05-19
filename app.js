@@ -599,15 +599,23 @@ async function listenAndEvaluate(term) {
 
     updateLiveResult(term.id, "Listening... speak now", "", true);
 
-    const isAppleDevice = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
+    const userAgent = navigator.userAgent;
+    const isAppleDevice = /Mac|iPod|iPhone|iPad/.test(userAgent);
+    const isAndroid = /Android/.test(userAgent);
+    const isWindows = /Win/.test(userAgent);
     
     const recognitionPromise = new Promise((resolve) => {
       recognition.onresult = (event) => {
         if (isAppleDevice) {
+          // Apple (Mac/iOS): Needs manual force-stop timer
           if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
           smartSilenceTimer = setTimeout(() => {
             try { recognition.stop(); } catch (e) {}
           }, 2000);
+        } else if (isAndroid) {
+          // Android: Let it use native default auto-stop
+        } else if (isWindows) {
+          // Windows: Let it use native default auto-stop
         }
 
         let interimTranscript = "";
@@ -868,6 +876,8 @@ function scoreAgainstTarget(target, recognized) {
     score -= Math.min(extraWords.length * 8, 18);
   } else {
     score = similarityScore;
+    score -= extraWords.length * 20;
+    if (similarityScore < 40) score = 0;
   }
 
   return { score, missingWords, extraWords, similarityScore, overlapScore };
