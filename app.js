@@ -600,12 +600,14 @@ async function listenAndEvaluate(term) {
     updateLiveResult(term.id, "Listening... speak now", "", true);
 
     const recognitionPromise = new Promise((resolve) => {
+      const isAppleDevice = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
       recognition.onresult = (event) => {
-        const dynamicTimeout = AppState.activeTab === "sentences" ? 1500 : 1000;
-        if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
-        smartSilenceTimer = setTimeout(() => {
-          try { recognition.stop(); } catch (e) {}
-        }, dynamicTimeout);
+        if (isAppleDevice) {
+          if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
+          smartSilenceTimer = setTimeout(() => {
+            try { recognition.stop(); } catch (e) {}
+          }, 2000);
+        }
 
         let interimTranscript = "";
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -633,36 +635,17 @@ async function listenAndEvaluate(term) {
 
       recognition.onerror = (event) => {
         if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
+        if (isAppleDevice && smartSilenceTimer) clearTimeout(smartSilenceTimer);
         resolve({ type: "error", error: event.error });
       };
 
       recognition.onend = () => {
-        if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
+        if (isAppleDevice && smartSilenceTimer) clearTimeout(smartSilenceTimer);
         resolve({ type: "end" });
       };
     });
 
     recognition.start();
-
-    let silenceTicks = 0;
-    const volumePollTimer = setInterval(() => {
-      if (!volumeMonitor) return;
-      const stats = volumeMonitor.getStats();
-      
-      // Only start silence timeout IF actual words have been recognized, 
-      // preventing background noise/mic bumps from triggering early shutdown.
-      const hasSpokenWords = (finalTranscript || interimTranscriptCache || bestTranscript).trim().length > 0;
-      
-      if (hasSpokenWords && stats.averageVolume < 3.0) {
-        silenceTicks++;
-        const maxTicks = AppState.activeTab === "sentences" ? 15 : 10; // 1.5s or 1.0s
-        if (silenceTicks >= maxTicks) {
-          try { recognition.stop(); } catch (e) {}
-        }
-      } else if (stats.averageVolume >= 3.0) {
-        silenceTicks = 0;
-      }
-    }, 100);
 
     const listenTimeout = AppState.activeTab === "sentences" ? 18000 : 7000;
     AppState.speechTimeoutId = setTimeout(() => {
@@ -674,9 +657,8 @@ async function listenAndEvaluate(term) {
     }, listenTimeout);
 
     const outcome = await recognitionPromise;
-    clearInterval(volumePollTimer);
     clearTimeout(AppState.speechTimeoutId);
-    if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
+    if (isAppleDevice && smartSilenceTimer) clearTimeout(smartSilenceTimer);
 
     await stopAttemptRecording(term.id);
     const monitorStats = volumeMonitor.getStats();
