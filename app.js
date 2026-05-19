@@ -601,10 +601,11 @@ async function listenAndEvaluate(term) {
 
     const recognitionPromise = new Promise((resolve) => {
       recognition.onresult = (event) => {
+        const dynamicTimeout = AppState.activeTab === "sentences" ? 1500 : 1000;
         if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
         smartSilenceTimer = setTimeout(() => {
           try { recognition.stop(); } catch (e) {}
-        }, 2000);
+        }, dynamicTimeout);
 
         let interimTranscript = "";
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -643,6 +644,22 @@ async function listenAndEvaluate(term) {
 
     recognition.start();
 
+    let silenceTicks = 0;
+    const volumePollTimer = setInterval(() => {
+      if (!volumeMonitor) return;
+      const stats = volumeMonitor.getStats();
+      // If voice was detected at least once, and now it's quiet (averageVolume < 2.5)
+      if (stats.hasDetectedVoice && stats.averageVolume < 2.5) {
+        silenceTicks++;
+        const maxTicks = AppState.activeTab === "sentences" ? 15 : 10; // 1.5s or 1.0s at 100ms interval
+        if (silenceTicks >= maxTicks) {
+          try { recognition.stop(); } catch (e) {}
+        }
+      } else if (stats.averageVolume >= 2.5) {
+        silenceTicks = 0;
+      }
+    }, 100);
+
     const listenTimeout = AppState.activeTab === "sentences" ? 18000 : 7000;
     AppState.speechTimeoutId = setTimeout(() => {
       try {
@@ -653,6 +670,7 @@ async function listenAndEvaluate(term) {
     }, listenTimeout);
 
     const outcome = await recognitionPromise;
+    clearInterval(volumePollTimer);
     clearTimeout(AppState.speechTimeoutId);
     if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
 
