@@ -599,8 +599,9 @@ async function listenAndEvaluate(term) {
 
     updateLiveResult(term.id, "Listening... speak now", "", true);
 
+    const isAppleDevice = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
+    
     const recognitionPromise = new Promise((resolve) => {
-      const isAppleDevice = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
       recognition.onresult = (event) => {
         if (isAppleDevice) {
           if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
