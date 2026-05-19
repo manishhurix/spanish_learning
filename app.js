@@ -648,14 +648,18 @@ async function listenAndEvaluate(term) {
     const volumePollTimer = setInterval(() => {
       if (!volumeMonitor) return;
       const stats = volumeMonitor.getStats();
-      // If voice was detected at least once, and now it's quiet (averageVolume < 2.5)
-      if (stats.hasDetectedVoice && stats.averageVolume < 2.5) {
+      
+      // Only start silence timeout IF actual words have been recognized, 
+      // preventing background noise/mic bumps from triggering early shutdown.
+      const hasSpokenWords = (finalTranscript || interimTranscriptCache || bestTranscript).trim().length > 0;
+      
+      if (hasSpokenWords && stats.averageVolume < 3.0) {
         silenceTicks++;
-        const maxTicks = AppState.activeTab === "sentences" ? 15 : 10; // 1.5s or 1.0s at 100ms interval
+        const maxTicks = AppState.activeTab === "sentences" ? 15 : 10; // 1.5s or 1.0s
         if (silenceTicks >= maxTicks) {
           try { recognition.stop(); } catch (e) {}
         }
-      } else if (stats.averageVolume >= 2.5) {
+      } else if (stats.averageVolume >= 3.0) {
         silenceTicks = 0;
       }
     }, 100);
