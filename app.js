@@ -571,6 +571,11 @@ async function listenAndEvaluate(term) {
   setTermButtonsDisabled(true, term.id);
   AppState.activeTermId = term.id;
 
+  const userAgent = navigator.userAgent;
+  const isAppleDevice = /Mac|iPod|iPhone|iPad/.test(userAgent);
+  const isAndroid = /Android/.test(userAgent);
+  const isWindows = /Win/.test(userAgent);
+
   let stream;
   let volumeMonitor;
   let finalTranscript = "";
@@ -580,11 +585,16 @@ async function listenAndEvaluate(term) {
   let smartSilenceTimer = null;
 
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    AppState.activeStream = stream;
-    volumeMonitor = await createVolumeMonitor(stream);
-    AppState.volumeMonitor = volumeMonitor;
-    startAttemptRecording(stream, term.id);
+    // Android Chrome blocks SpeechRecognition if getUserMedia holds the microphone.
+    if (!isAndroid) {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      AppState.activeStream = stream;
+      volumeMonitor = await createVolumeMonitor(stream);
+      AppState.volumeMonitor = volumeMonitor;
+      startAttemptRecording(stream, term.id);
+    } else {
+      volumeMonitor = await createVolumeMonitor(null);
+    }
 
     const recognition = new SpeechRecognitionCtor();
     AppState.activeRecognition = recognition;
@@ -599,11 +609,6 @@ async function listenAndEvaluate(term) {
 
     updateLiveResult(term.id, "Listening... speak now", "", true);
 
-    const userAgent = navigator.userAgent;
-    const isAppleDevice = /Mac|iPod|iPhone|iPad/.test(userAgent);
-    const isAndroid = /Android/.test(userAgent);
-    const isWindows = /Win/.test(userAgent);
-    
     const recognitionPromise = new Promise((resolve) => {
       recognition.onresult = (event) => {
         if (isAppleDevice) {
@@ -708,7 +713,7 @@ async function listenAndEvaluate(term) {
 
 async function createVolumeMonitor(stream) {
   const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextCtor) {
+  if (!AudioContextCtor || !stream) {
     return {
       stop() {},
       getStats() {
