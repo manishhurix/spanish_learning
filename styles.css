@@ -314,6 +314,44 @@ h1 {
   justify-content: flex-end;
 }
 
+.tab-switcher {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 22px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  width: fit-content;
+  backdrop-filter: blur(12px);
+}
+
+.tab-btn {
+  min-height: 46px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 10px 36px;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.28s ease;
+  background: transparent;
+  color: var(--muted);
+}
+
+.tab-btn:hover:not(.active) {
+  color: var(--primary);
+  background: var(--soft-blue);
+  transform: translateY(-1px);
+}
+
+.tab-btn.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  border-color: transparent;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.3);
+}
+
 .terms-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -25,14 +25,29 @@ const MEDICAL_TERMS = [
   { id: 10, spanish: "emergencia", english: "emergency", category: "Care", aliases: ["emergencia"] }
 ];
 
+const MEDICAL_SENTENCES = [
+  { id: 101, spanish: "Tengo mucho dolor en el pecho", english: "I have a lot of pain in my chest", category: "Symptoms", aliases: ["tengo mucho dolor en el pecho"] },
+  { id: 102, spanish: "El paciente tiene fiebre alta", english: "The patient has a high fever", category: "Symptoms", aliases: ["el paciente tiene fiebre alta"] },
+  { id: 103, spanish: "La tos no para desde ayer", english: "The cough hasn't stopped since yesterday", category: "Symptoms", aliases: ["la tos no para desde ayer"] },
+  { id: 104, spanish: "Siento mucho mareo y náusea", english: "I feel very dizzy and nauseous", category: "Symptoms", aliases: ["siento mucho mareo y nausea", "siento mucho mareo y náusea"] },
+  { id: 105, spanish: "Necesito revisar su presión arterial", english: "I need to check your blood pressure", category: "Vitals", aliases: ["necesito revisar su presion arterial", "necesito revisar su presión arterial"] },
+  { id: 106, spanish: "Su respiración es muy rápida", english: "Your breathing is very fast", category: "Vitals", aliases: ["su respiracion es muy rapida", "su respiración es muy rápida"] },
+  { id: 107, spanish: "Tome el medicamento cada ocho horas", english: "Take the medicine every eight hours", category: "Treatment", aliases: ["tome el medicamento cada ocho horas"] },
+  { id: 108, spanish: "Necesita una inyección para el dolor", english: "You need an injection for the pain", category: "Treatment", aliases: ["necesita una inyeccion para el dolor", "necesita una inyección para el dolor"] },
+  { id: 109, spanish: "Es una emergencia, llame al doctor", english: "It's an emergency, call the doctor", category: "Care", aliases: ["es una emergencia llame al doctor", "es una emergencia, llame al doctor"] },
+  { id: 110, spanish: "Tiene náusea después de comer", english: "You have nausea after eating", category: "Symptoms", aliases: ["tiene nausea despues de comer", "tiene náusea después de comer"] }
+];
+
 const AppState = {
   hasMicPermission: false,
   recognitionSupported: false,
   recognitionMode: "unknown", // unknown | local | browser-managed | unavailable
   spanishVoiceAvailable: false,
   activeTermId: null,
+  activeTab: "words", // words | sentences
   attempts: {},
   terms: [],
+  sentenceTerms: [],
   voices: [],
   selectedSpanishVoice: null,
   activeRecognition: null,
@@ -70,6 +85,8 @@ function cacheDom() {
   DOM.installPackBtn = document.getElementById("installPackBtn");
   DOM.continueBrowserBtn = document.getElementById("continueBrowserBtn");
   DOM.termsGrid = document.getElementById("termsGrid");
+  DOM.wordsTab = document.getElementById("wordsTab");
+  DOM.sentencesTab = document.getElementById("sentencesTab");
 }
 
 function bindEvents() {
@@ -82,10 +99,31 @@ function bindEvents() {
     showGlobalMessage("Continuing with Chrome's available browser-managed speech recognition mode.", "warning");
   });
 
+  // Tab switching
+  DOM.wordsTab.addEventListener("click", () => switchTab("words"));
+  DOM.sentencesTab.addEventListener("click", () => switchTab("sentences"));
+
   if ("speechSynthesis" in window) {
     window.speechSynthesis.onvoiceschanged = async () => {
       await loadVoices();
     };
+  }
+}
+
+function switchTab(tab) {
+  if (AppState.activeTab === tab) return;
+  stopActiveRecognition();
+  AppState.activeTab = tab;
+
+  // Toggle active class on tab buttons
+  DOM.wordsTab.classList.toggle("active", tab === "words");
+  DOM.sentencesTab.classList.toggle("active", tab === "sentences");
+
+  // Re-render the grid based on active tab
+  if (tab === "words") {
+    renderTerms(AppState.terms);
+  } else {
+    renderTerms(AppState.sentenceTerms);
   }
 }
 
@@ -150,6 +188,7 @@ async function enterLearningPage() {
   checkBrowserSupport();
   await checkAndInstallSpanishSpeechPack();
   AppState.terms = await loadTerms();
+  AppState.sentenceTerms = await loadSentences();
   renderTerms(AppState.terms);
 }
 
@@ -290,6 +329,10 @@ async function loadTerms() {
   // Replace this function with CSV, XLSX, JSON, or LMS asset loading logic.
   // Keep returned objects in the same shape: { id, spanish, english, category, aliases }.
   return MEDICAL_TERMS;
+}
+
+async function loadSentences() {
+  return MEDICAL_SENTENCES;
 }
 
 function renderTerms(terms) {
@@ -535,13 +578,14 @@ async function listenAndEvaluate(term) {
 
     recognition.start();
 
+    const listenTimeout = AppState.activeTab === "sentences" ? 18000 : 7000;
     AppState.speechTimeoutId = setTimeout(() => {
       try {
         recognition.stop();
       } catch (error) {
         // Recognition may already be stopped. Ignore safely.
       }
-    }, 7000);
+    }, listenTimeout);
 
     const outcome = await recognitionPromise;
     clearTimeout(AppState.speechTimeoutId);
@@ -693,15 +737,24 @@ function evaluateSpeech(expectedTerm, aliases, recognizedText) {
   const targetScores = acceptableTargets.map((target) => scoreAgainstTarget(target, recognizedNormalized));
   const best = targetScores.sort((a, b) => b.score - a.score)[0];
   const score = Math.max(0, Math.min(100, Math.round(best.score)));
-  const status = score >= 90 ? "matched" : score >= 70 ? "almost" : "not_matched";
+  const isSentence = AppState.activeTab === "sentences";
+  const status = isSentence
+    ? (score >= 80 ? "matched" : score >= 55 ? "almost" : "not_matched")
+    : (score >= 90 ? "matched" : score >= 70 ? "almost" : "not_matched");
 
   let message;
   if (status === "matched") {
-    message = "Good match. Chrome heard a very close version of the term.";
+    message = isSentence
+      ? "Great job! Your sentence pronunciation was clearly understood."
+      : "Good match. Chrome heard a very close version of the term.";
   } else if (status === "almost") {
-    message = "Almost matched. Try again slowly and focus on the highlighted missing or extra words.";
+    message = isSentence
+      ? "Almost there! Focus on the missing words and try the full sentence again."
+      : "Almost matched. Try again slowly and focus on the highlighted missing or extra words.";
   } else {
-    message = "Not matched yet. Listen again, then repeat the Spanish term clearly.";
+    message = isSentence
+      ? "Not matched yet. Listen to the sentence again, then repeat it slowly and clearly."
+      : "Not matched yet. Listen again, then repeat the Spanish term clearly.";
   }
 
   return {
@@ -1003,7 +1056,7 @@ function getSpeechRecognitionCtor() {
 }
 
 function getTermById(id) {
-  return AppState.terms.find((term) => term.id === id);
+  return AppState.terms.find((term) => term.id === id) || AppState.sentenceTerms.find((term) => term.id === id);
 }
 
 function showGlobalMessage(message, type) {
