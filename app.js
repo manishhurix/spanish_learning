@@ -352,10 +352,21 @@ function renderTerms(terms) {
         <span class="category-pill">${escapeHtml(term.category)}</span>
       </div>
 
-      <div class="card-actions">
-        <button class="btn btn-primary play-btn" type="button" data-term-id="${term.id}" aria-label="Play ${escapeHtml(term.spanish)}">
-          Play
-        </button>
+      <div class="card-actions ${AppState.activeTab === 'sentences' ? 'has-speed' : ''}">
+        <div class="play-group">
+          <button class="btn btn-primary play-btn w-full" type="button" data-term-id="${term.id}" aria-label="Play ${escapeHtml(term.spanish)}">
+            Play
+          </button>
+          ${AppState.activeTab === 'sentences' ? `
+            <div class="speed-controls" aria-label="Playback speed">
+              <button class="speed-btn" data-speed="0.5" data-term-id="${term.id}">0.5x</button>
+              <button class="speed-btn" data-speed="0.75" data-term-id="${term.id}">0.75x</button>
+              <button class="speed-btn active" data-speed="1.0" data-term-id="${term.id}">1.0x</button>
+              <button class="speed-btn" data-speed="1.25" data-term-id="${term.id}">1.25x</button>
+              <button class="speed-btn" data-speed="1.5" data-term-id="${term.id}">1.5x</button>
+            </div>
+          ` : ""}
+        </div>
         <button class="btn btn-secondary try-btn" type="button" data-term-id="${term.id}" ${AppState.recognitionMode === "unavailable" ? "disabled" : ""}>
           Now you try
         </button>
@@ -374,8 +385,26 @@ function renderTerms(terms) {
 
   document.querySelectorAll(".play-btn").forEach((button) => {
     button.addEventListener("click", () => {
-      const term = getTermById(Number(button.dataset.termId));
-      speakSpanish(term.spanish, term.id);
+      const termId = Number(button.dataset.termId);
+      const term = getTermById(termId);
+      
+      let speed = 0.86; // Default for words
+      if (AppState.activeTab === "sentences") {
+        const activeSpeedBtn = document.querySelector(`.speed-btn.active[data-term-id="${termId}"]`);
+        speed = activeSpeedBtn ? parseFloat(activeSpeedBtn.dataset.speed) : 1.0;
+      }
+      
+      speakSpanish(term.spanish, termId, speed);
+    });
+  });
+
+  document.querySelectorAll(".speed-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const termId = Number(button.dataset.termId);
+      // Remove active class from all speed buttons in this card
+      document.querySelectorAll(`.speed-btn[data-term-id="${termId}"]`).forEach(btn => btn.classList.remove("active"));
+      // Add active to the clicked one
+      button.classList.add("active");
     });
   });
 
@@ -459,7 +488,7 @@ function chooseSpanishVoice(voices) {
   return preferred || spanishVoices[0];
 }
 
-function speakSpanish(text, termId) {
+function speakSpanish(text, termId, speed = 0.86) {
   if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
     showGlobalMessage("Text-to-speech is not supported in this browser.", "error");
     return;
@@ -480,7 +509,7 @@ function speakSpanish(text, termId) {
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "es-ES";
-  utterance.rate = 0.86;
+  utterance.rate = speed;
   utterance.pitch = 1;
   if (AppState.selectedSpanishVoice) utterance.voice = AppState.selectedSpanishVoice;
 

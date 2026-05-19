@@ -401,6 +401,50 @@ h1 {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin: 16px 0;
+  align-items: flex-start;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.play-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.speed-controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  background: var(--soft-blue);
+  border-radius: 999px;
+  padding: 4px;
+  border: 1px solid var(--border);
+}
+
+.speed-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 4px 0;
+  transition: all 0.2s;
+}
+
+.speed-btn:hover {
+  color: var(--primary);
+}
+
+.speed-btn.active {
+  background: #fff;
+  color: var(--primary-dark);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
 }
 
 .result-area {
