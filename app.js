@@ -370,11 +370,11 @@ function renderTerms(terms) {
         <button class="btn btn-secondary try-btn" type="button" data-term-id="${term.id}" ${AppState.recognitionMode === "unavailable" ? "disabled" : ""}>
           Now you try
         </button>
-        <div class="playback-btn-wrapper" style="position: relative; width: 100%;">
-          <button class="btn btn-ghost playback-btn w-full" type="button" data-term-id="${term.id}" ${!/Android/.test(navigator.userAgent) && !AppState.lastRecordings[term.id] ? "disabled" : ""}>
-            Play my voice
-          </button>
-        </div>
+        ${/Android/.test(navigator.userAgent) ? "" : `
+        <button class="btn btn-ghost playback-btn" type="button" data-term-id="${term.id}" ${AppState.lastRecordings[term.id] ? "" : "disabled"}>
+          Play my voice
+        </button>
+        `}
       </div>
 
       <div class="result-area" id="result-${term.id}" aria-live="polite">
@@ -418,8 +418,8 @@ function renderTerms(terms) {
   });
 
   document.querySelectorAll(".playback-btn").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      playLastRecording(Number(button.dataset.termId), event);
+    button.addEventListener("click", () => {
+      playLastRecording(Number(button.dataset.termId));
     });
   });
 }
@@ -1115,25 +1115,7 @@ function stopAttemptRecording(termId) {
   });
 }
 
-function playLastRecording(termId, event) {
-  if (/Android/.test(navigator.userAgent)) {
-    const wrapper = event.target.closest('.playback-btn-wrapper');
-    if (wrapper) {
-      const existing = wrapper.querySelector('.play-voice-tooltip');
-      if (existing) existing.remove();
-      
-      const tooltip = document.createElement('div');
-      tooltip.className = 'play-voice-tooltip';
-      tooltip.textContent = "Audio playback is not supported on this device. Please try this feature on a desktop computer.";
-      wrapper.appendChild(tooltip);
-      
-      setTimeout(() => {
-        if (tooltip.parentNode) tooltip.remove();
-      }, 4000);
-    }
-    return;
-  }
-
+function playLastRecording(termId) {
   const recording = AppState.lastRecordings[termId];
   if (!recording) {
     showGlobalMessage("No recording is available for this term yet. Tap “Now you try” first.", "warning");
