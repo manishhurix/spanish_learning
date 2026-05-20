@@ -370,7 +370,7 @@ function renderTerms(terms) {
         <button class="btn btn-secondary try-btn" type="button" data-term-id="${term.id}" ${AppState.recognitionMode === "unavailable" ? "disabled" : ""}>
           Now you try
         </button>
-        <button class="btn btn-ghost playback-btn" type="button" data-term-id="${term.id}" ${AppState.lastRecordings[term.id] ? "" : "disabled"}>
+        <button class="btn btn-ghost playback-btn" type="button" data-term-id="${term.id}" ${!/Android/.test(navigator.userAgent) && !AppState.lastRecordings[term.id] ? "disabled" : ""}>
           Play my voice
         </button>
       </div>
@@ -387,13 +387,13 @@ function renderTerms(terms) {
     button.addEventListener("click", () => {
       const termId = Number(button.dataset.termId);
       const term = getTermById(termId);
-      
+
       let speed = 0.86; // Default for words
       if (AppState.activeTab === "sentences") {
         const activeSpeedBtn = document.querySelector(`.speed-btn.active[data-term-id="${termId}"]`);
         speed = activeSpeedBtn ? parseFloat(activeSpeedBtn.dataset.speed) : 1.0;
       }
-      
+
       speakSpanish(term.spanish, termId, speed);
     });
   });
@@ -585,11 +585,16 @@ async function listenAndEvaluate(term) {
   let smartSilenceTimer = null;
 
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    AppState.activeStream = stream;
-    volumeMonitor = await createVolumeMonitor(stream);
-    AppState.volumeMonitor = volumeMonitor;
-    startAttemptRecording(stream, term.id);
+    // Android Chrome blocks SpeechRecognition if getUserMedia holds the microphone.
+    if (!isAndroid) {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      AppState.activeStream = stream;
+      volumeMonitor = await createVolumeMonitor(stream);
+      AppState.volumeMonitor = volumeMonitor;
+      startAttemptRecording(stream, term.id);
+    } else {
+      volumeMonitor = await createVolumeMonitor(null);
+    }
 
     const recognition = new SpeechRecognitionCtor();
     AppState.activeRecognition = recognition;
@@ -610,7 +615,7 @@ async function listenAndEvaluate(term) {
           // Apple (Mac/iOS): Needs manual force-stop timer
           if (smartSilenceTimer) clearTimeout(smartSilenceTimer);
           smartSilenceTimer = setTimeout(() => {
-            try { recognition.stop(); } catch (e) {}
+            try { recognition.stop(); } catch (e) { }
           }, 2000);
         } else if (isAndroid) {
           // Android: Let it use native default auto-stop
@@ -710,7 +715,7 @@ async function createVolumeMonitor(stream) {
   const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextCtor || !stream) {
     return {
-      stop() {},
+      stop() { },
       getStats() {
         return { hasDetectedVoice: true, averageVolume: 0, peakVolume: 0 };
       }
@@ -1109,6 +1114,11 @@ function stopAttemptRecording(termId) {
 }
 
 function playLastRecording(termId) {
+  if (/Android/.test(navigator.userAgent)) {
+    showGlobalMessage("This feature is not available on your device, however, you can use it on a desktop.", "warning");
+    return;
+  }
+
   const recording = AppState.lastRecordings[termId];
   if (!recording) {
     showGlobalMessage("No recording is available for this term yet. Tap “Now you try” first.", "warning");
