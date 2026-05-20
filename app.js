@@ -370,11 +370,9 @@ function renderTerms(terms) {
         <button class="btn btn-secondary try-btn" type="button" data-term-id="${term.id}" ${AppState.recognitionMode === "unavailable" ? "disabled" : ""}>
           Now you try
         </button>
-        ${/Android/.test(navigator.userAgent) ? "" : `
         <button class="btn btn-ghost playback-btn" type="button" data-term-id="${term.id}" ${AppState.lastRecordings[term.id] ? "" : "disabled"}>
           Play my voice
         </button>
-        `}
       </div>
 
       <div class="result-area" id="result-${term.id}" aria-live="polite">
