@@ -370,11 +370,9 @@ function renderTerms(terms) {
         <button class="btn btn-secondary try-btn" type="button" data-term-id="${term.id}" ${AppState.recognitionMode === "unavailable" ? "disabled" : ""}>
           Now you try
         </button>
-        ${/Android/.test(navigator.userAgent) ? "" : `
         <button class="btn btn-ghost playback-btn" type="button" data-term-id="${term.id}" ${AppState.lastRecordings[term.id] ? "" : "disabled"}>
           Play my voice
         </button>
-        `}
       </div>
 
       <div class="result-area" id="result-${term.id}" aria-live="polite">
@@ -587,16 +585,11 @@ async function listenAndEvaluate(term) {
   let smartSilenceTimer = null;
 
   try {
-    // Android Chrome blocks SpeechRecognition if getUserMedia holds the microphone.
-    if (!isAndroid) {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      AppState.activeStream = stream;
-      volumeMonitor = await createVolumeMonitor(stream);
-      AppState.volumeMonitor = volumeMonitor;
-      startAttemptRecording(stream, term.id);
-    } else {
-      volumeMonitor = await createVolumeMonitor(null);
-    }
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    AppState.activeStream = stream;
+    volumeMonitor = await createVolumeMonitor(stream);
+    AppState.volumeMonitor = volumeMonitor;
+    startAttemptRecording(stream, term.id);
 
     const recognition = new SpeechRecognitionCtor();
     AppState.activeRecognition = recognition;
