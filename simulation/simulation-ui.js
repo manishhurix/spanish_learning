@@ -7,8 +7,10 @@
 
   function init(target) {
     container = target;
-    global.SimulationEngine.startSimulation();
+    stopActiveActivities();
+    global.SimulationEngine.restartSimulation();
     render();
+    autoSpeakCurrentNode();
   }
 
   function stopActiveActivities() {
@@ -46,10 +48,13 @@
           <div class="simulation-header">
             <div>
               <p class="eyebrow">Guided Simulation</p>
-              <h2 id="simulationTitle">Patient Symptoms Conversation</h2>
-              <p class="simulation-subtitle">Listen to the prompt, repeat the Spanish response, and follow the branch.</p>
+              <h2 id="simulationTitle">${utils.escapeHtml(node.sceneTitle || "Patient Symptoms Conversation")}</h2>
+              <p class="simulation-subtitle">${utils.escapeHtml(node.sceneContext || "Listen, respond, and keep the patient conversation moving.")}</p>
             </div>
-            <span class="category-pill">${utils.escapeHtml(node.category)}</span>
+            <div class="simulation-meta">
+              <span class="category-pill">${utils.escapeHtml(node.category)}</span>
+              <span class="simulation-tone">${utils.escapeHtml(node.emotionalTone || "guided")}</span>
+            </div>
           </div>
 
           <div class="simulation-progress" aria-label="Simulation progress">
@@ -63,10 +68,24 @@
           </div>
 
           <div class="simulation-bot-area">
-            <p class="simulation-caption">Bot says</p>
-            <p class="simulation-english">${utils.escapeHtml(node.botTextEnglish)}</p>
-            <div class="simulation-spanish-phrase">${utils.escapeHtml(node.botTextSpanish)}</div>
-            <p class="hints">${utils.escapeHtml(node.learnerCue)}</p>
+            <p class="simulation-caption">Conversation</p>
+            <div class="simulation-dialogue">
+              <div class="simulation-line simulation-line-coach">
+                <span class="simulation-speaker">Coach</span>
+                <p>${utils.escapeHtml(node.botTextEnglish)}</p>
+              </div>
+              <div class="simulation-line simulation-line-patient">
+                <span class="simulation-speaker">Patient</span>
+                <p class="simulation-patient-english">${utils.escapeHtml(node.patientLineEnglish || "")}</p>
+                <p class="simulation-patient-spanish">${utils.escapeHtml(node.patientLineSpanish || "")}</p>
+              </div>
+              <div class="simulation-line simulation-line-learner">
+                <span class="simulation-speaker">Your task</span>
+                <p>${utils.escapeHtml(node.learnerInstruction || "Respond in Spanish.")}</p>
+                <div class="simulation-spanish-phrase">${utils.escapeHtml(node.botTextSpanish)}</div>
+              </div>
+            </div>
+            <p class="hints">Pronunciation focus: ${utils.escapeHtml(node.pronunciationFocus || node.coachingTip || "")}</p>
           </div>
 
           <div class="simulation-actions">
@@ -97,11 +116,11 @@
     return `
       <div class="result-heading">
         <span class="status-label">Ready</span>
-        <span class="attempt-count">Branch: start</span>
+        <span class="attempt-count">Difficulty: ${global.SimulationUtils.escapeHtml(node.difficultyLevel || 1)}</span>
       </div>
-      <p class="feedback-message">Use Listen Again, then speak the Spanish phrase when you are ready.</p>
+      <p class="feedback-message">Listen to the patient context, then respond in Spanish when you are ready.</p>
       <p class="transcript">Expected response: <strong>${global.SimulationUtils.escapeHtml(node.expectedResponses[0])}</strong></p>
-      <p class="hints">Hint: ${global.SimulationUtils.escapeHtml(node.pronunciationHints[0])}</p>
+      <p class="hints">Coaching tip: ${global.SimulationUtils.escapeHtml(node.coachingTip || "")}</p>
     `;
   }
 
@@ -128,6 +147,7 @@
       retry: "retry",
       fallback: "fallback"
     }[evaluation.branch] || evaluation.branch;
+    const advancedText = evaluation.advanced && !evaluation.completed ? "Moving to next patient exchange" : "Current exchange";
 
     return `
       <div class="result-heading">
@@ -154,8 +174,10 @@
         </div>
       </div>
       <p class="feedback-message">${global.SimulationUtils.escapeHtml(evaluation.message)}</p>
+      <p class="transcript">Conversation status: <strong>${global.SimulationUtils.escapeHtml(advancedText)}</strong></p>
       <p class="transcript">Recognized speech: <strong>${global.SimulationUtils.escapeHtml(evaluation.transcript || "-")}</strong></p>
       <p class="hints">Missing words: ${global.SimulationUtils.escapeHtml(missing)} | Extra words: ${global.SimulationUtils.escapeHtml(extra)}</p>
+      <p class="hints">Focus: ${global.SimulationUtils.escapeHtml(evaluation.pronunciationFocus || evaluation.coachingTip || "")}</p>
     `;
   }
 
@@ -219,8 +241,15 @@
         stopActiveActivities();
         global.SimulationEngine.restartSimulation();
         render();
+        autoSpeakCurrentNode();
       });
     }
+  }
+
+  function autoSpeakCurrentNode() {
+    setTimeout(() => {
+      if (!isListening) speakCurrentNode();
+    }, 0);
   }
 
   async function speakCurrentNode() {
@@ -233,8 +262,24 @@
     if (!evaluation) return;
 
     if (evaluation.branch === "retry") {
-      global.SimulationTTS.stopSpeaking();
-      await global.SimulationTTS.speakEnglish("Try again. You can do better.", { rate: selectedSpeechRate });
+      await global.SimulationTTS.speakMultilingualSequence([
+        { lang: "en", text: "Try again. You can do better." },
+        { pause: 260 },
+        { lang: "en", text: "Repeat this response slowly." },
+        { pause: 180 },
+        { lang: "es", text: evaluation.targetPhrase || evaluation.expected }
+      ], { rate: selectedSpeechRate });
+      return;
+    }
+
+    if (evaluation.branch === "clarification") {
+      await global.SimulationTTS.speakMultilingualSequence([
+        { lang: "en", text: evaluation.message },
+        { pause: 260 },
+        { lang: "en", text: "Try the full response again." },
+        { pause: 180 },
+        { lang: "es", text: evaluation.targetPhrase || evaluation.expected }
+      ], { rate: selectedSpeechRate });
       return;
     }
 
