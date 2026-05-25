@@ -3,7 +3,7 @@
 
   let container = null;
   let isListening = false;
-  let selectedSpanishRate = 1.0;
+  let selectedSpeechRate = 1.0;
 
   function init(target) {
     container = target;
@@ -72,8 +72,8 @@
           <div class="simulation-actions">
             <button class="btn btn-primary" id="simulationSpeakBtn" type="button">Listen Again</button>
             <div class="simulation-speed-control">
-              <span class="simulation-speed-label">Spanish speed</span>
-              <div class="speed-controls" aria-label="Simulation Spanish playback speed">
+              <span class="simulation-speed-label">Playback speed</span>
+              <div class="speed-controls" aria-label="Simulation bot playback speed">
                 ${renderSpeedButtons()}
               </div>
             </div>
@@ -115,7 +115,7 @@
     ];
 
     return speeds.map((speed) => `
-      <button class="speed-btn simulation-speed-btn ${selectedSpanishRate === speed.rate ? "active" : ""}" data-speed="${speed.rate}" type="button">${speed.label}</button>
+      <button class="speed-btn simulation-speed-btn ${selectedSpeechRate === speed.rate ? "active" : ""}" data-speed="${speed.rate}" type="button">${speed.label}</button>
     `).join("");
   }
 
@@ -208,7 +208,7 @@
     if (speakBtn) speakBtn.addEventListener("click", speakCurrentNode);
     document.querySelectorAll(".simulation-speed-btn").forEach((button) => {
       button.addEventListener("click", () => {
-        selectedSpanishRate = Number(button.dataset.speed);
+        selectedSpeechRate = Number(button.dataset.speed);
         document.querySelectorAll(".simulation-speed-btn").forEach((speedButton) => speedButton.classList.remove("active"));
         button.classList.add("active");
       });
@@ -226,7 +226,7 @@
   async function speakCurrentNode() {
     const snapshot = global.SimulationEngine.getSnapshot();
     if (!snapshot.currentNode) return;
-    await global.SimulationTTS.speakNode(snapshot.currentNode, { rate: selectedSpanishRate });
+    await global.SimulationTTS.speakNode(snapshot.currentNode, { rate: selectedSpeechRate });
   }
 
   async function speakAfterBranch(evaluation) {
@@ -234,7 +234,7 @@
 
     if (evaluation.branch === "retry") {
       global.SimulationTTS.stopSpeaking();
-      await global.SimulationTTS.speakEnglish("Try again. You can do better.");
+      await global.SimulationTTS.speakEnglish("Try again. You can do better.", { rate: selectedSpeechRate });
       return;
     }
 

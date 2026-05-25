@@ -44,8 +44,9 @@
     }
   }
 
-  async function speakEnglish(text) {
-    return speakText(text, ["en-US", "en"], 0.96);
+  async function speakEnglish(text, options) {
+    const rate = options && typeof options.rate === "number" ? options.rate : 0.96;
+    return speakText(text, ["en-US", "en"], rate);
   }
 
   async function speakSpanish(text, options) {
@@ -57,7 +58,7 @@
 
   async function speakNode(node, options) {
     stopSpeaking();
-    await speakEnglish(node.botTextEnglish);
+    await speakEnglish(node.botTextEnglish, options);
     if (node.botTextSpanish) {
       await speakSpanish(node.botTextSpanish, options);
     }
