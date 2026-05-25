@@ -1,0 +1,80 @@
+(function (global) {
+  "use strict";
+
+  let voices = [];
+
+  function refreshVoices() {
+    if (!("speechSynthesis" in global)) return [];
+    voices = global.speechSynthesis.getVoices();
+    return voices;
+  }
+
+  function chooseVoice(languageCodes) {
+    const availableVoices = voices.length ? voices : refreshVoices();
+    return availableVoices.find((voice) => {
+      const voiceLang = String(voice.lang || "").toLowerCase();
+      return languageCodes.some((languageCode) => voiceLang.startsWith(languageCode.toLowerCase()));
+    }) || null;
+  }
+
+  function speakText(text, languageCodes, rate) {
+    return new Promise((resolve) => {
+      if (!("speechSynthesis" in global) || typeof global.SpeechSynthesisUtterance === "undefined" || !text) {
+        resolve(false);
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = languageCodes[0];
+      utterance.rate = rate;
+      utterance.pitch = 1;
+
+      const voice = chooseVoice(languageCodes);
+      if (voice) utterance.voice = voice;
+
+      utterance.onend = () => resolve(true);
+      utterance.onerror = () => resolve(false);
+      global.speechSynthesis.speak(utterance);
+    });
+  }
+
+  function stopSpeaking() {
+    if ("speechSynthesis" in global) {
+      global.speechSynthesis.cancel();
+    }
+  }
+
+  async function speakEnglish(text) {
+    return speakText(text, ["en-US", "en"], 0.96);
+  }
+
+  async function speakSpanish(text, options) {
+    const rate = options && typeof options.rate === "number"
+      ? options.rate
+      : options && options.slow ? 0.68 : 0.86;
+    return speakText(text, ["es-ES", "es-MX", "es"], rate);
+  }
+
+  async function speakNode(node, options) {
+    stopSpeaking();
+    await speakEnglish(node.botTextEnglish);
+    if (node.botTextSpanish) {
+      await speakSpanish(node.botTextSpanish, options);
+    }
+  }
+
+  if ("speechSynthesis" in global) {
+    refreshVoices();
+    if (typeof global.speechSynthesis.addEventListener === "function") {
+      global.speechSynthesis.addEventListener("voiceschanged", refreshVoices);
+    }
+  }
+
+  global.SimulationTTS = {
+    speakEnglish,
+    speakSpanish,
+    speakNode,
+    stopSpeaking,
+    refreshVoices
+  };
+})(window);

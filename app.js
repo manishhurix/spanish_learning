@@ -44,7 +44,7 @@ const AppState = {
   recognitionMode: "unknown", // unknown | local | browser-managed | unavailable
   spanishVoiceAvailable: false,
   activeTermId: null,
-  activeTab: "words", // words | sentences
+  activeTab: "words", // words | sentences | simulation
   attempts: {},
   terms: [],
   sentenceTerms: [],
@@ -87,6 +87,7 @@ function cacheDom() {
   DOM.termsGrid = document.getElementById("termsGrid");
   DOM.wordsTab = document.getElementById("wordsTab");
   DOM.sentencesTab = document.getElementById("sentencesTab");
+  DOM.simulationTab = document.getElementById("simulationTab");
 }
 
 function bindEvents() {
@@ -102,6 +103,7 @@ function bindEvents() {
   // Tab switching
   DOM.wordsTab.addEventListener("click", () => switchTab("words"));
   DOM.sentencesTab.addEventListener("click", () => switchTab("sentences"));
+  DOM.simulationTab.addEventListener("click", () => switchTab("simulation"));
 
   if ("speechSynthesis" in window) {
     window.speechSynthesis.onvoiceschanged = async () => {
@@ -113,18 +115,43 @@ function bindEvents() {
 function switchTab(tab) {
   if (AppState.activeTab === tab) return;
   stopActiveRecognition();
+  if (AppState.activeTab === "simulation" && window.SimulationUI) {
+    window.SimulationUI.stopActiveActivities();
+  }
   AppState.activeTab = tab;
 
   // Toggle active class on tab buttons
   DOM.wordsTab.classList.toggle("active", tab === "words");
   DOM.sentencesTab.classList.toggle("active", tab === "sentences");
+  DOM.simulationTab.classList.toggle("active", tab === "simulation");
 
   // Re-render the grid based on active tab
   if (tab === "words") {
+    DOM.termsGrid.classList.remove("simulation-mode");
     renderTerms(AppState.terms);
-  } else {
+  } else if (tab === "sentences") {
+    DOM.termsGrid.classList.remove("simulation-mode");
     renderTerms(AppState.sentenceTerms);
+  } else {
+    renderSimulation();
   }
+}
+
+function renderSimulation() {
+  DOM.termsGrid.classList.add("simulation-mode");
+
+  if (!window.SimulationUI) {
+    DOM.termsGrid.innerHTML = `
+      <article class="term-card">
+        <div class="result-area">
+          <p class="feedback-message">Simulation mode could not load. Please confirm the static simulation files are included in the SCORM package.</p>
+        </div>
+      </article>
+    `;
+    return;
+  }
+
+  window.SimulationUI.init(DOM.termsGrid);
 }
 
 async function requestMicrophonePermission() {

@@ -22,6 +22,7 @@ Learners can:
 5. Click **Now you try** to speak the term.
 6. Let Chrome SpeechRecognition convert their speech to text.
 7. See matched / almost matched / not matched feedback, score, recognized text, mismatch hints, and attempt count.
+8. Open **Simulation** mode for a guided 10-step patient symptoms conversation with deterministic branching, replay, speech recognition, and pronunciation feedback.
 
 ## Files
 
@@ -30,6 +31,14 @@ spanish-medical-speech-activity/
   index.html
   styles.css
   app.js
+  simulation/
+    simulation-data.js
+    simulation-engine.js
+    simulation-stt.js
+    simulation-tts.js
+    simulation-ui.js
+    simulation-utils.js
+    simulation.css
   README.md
 ```
 
@@ -97,6 +106,20 @@ The application code does not call:
 - Any third-party speech API
 
 It only uses browser-provided APIs.
+
+## Simulation mode
+
+The **Simulation** tab adds a browser-only guided conversation for a basic medical interaction where a patient describes symptoms. It uses a deterministic state machine, not an AI chatbot.
+
+The simulation includes:
+
+- 10 ordered learning nodes
+- success, clarification, retry, and fallback branches
+- English narration and Spanish phrase playback through `speechSynthesis`
+- Spanish speech recognition through `SpeechRecognition` / `webkitSpeechRecognition`
+- local pronunciation scoring with normalization and Levenshtein similarity
+
+All simulation files are static assets under `simulation/`, so the feature remains suitable for SCORM packaging.
 
 ## Matching approach
 

@@ -6,6 +6,7 @@
   <meta name="description" content="Browser-based Spanish medical speech learning activity using Web Speech APIs." />
   <title>Spanish Medical Speech Activity</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="simulation/simulation.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -70,6 +71,7 @@
       <div class="tab-switcher" id="tabSwitcher">
         <button class="tab-btn active" id="wordsTab" type="button" data-tab="words">Words</button>
         <button class="tab-btn" id="sentencesTab" type="button" data-tab="sentences">Sentences</button>
+        <button class="tab-btn" id="simulationTab" type="button" data-tab="simulation">Simulation</button>
       </div>
 
       <main>
@@ -78,6 +80,12 @@
     </section>
   </div>
 
+  <script src="simulation/simulation-utils.js"></script>
+  <script src="simulation/simulation-data.js"></script>
+  <script src="simulation/simulation-tts.js"></script>
+  <script src="simulation/simulation-stt.js"></script>
+  <script src="simulation/simulation-engine.js"></script>
+  <script src="simulation/simulation-ui.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
