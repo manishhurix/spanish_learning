@@ -2,6 +2,8 @@
   "use strict";
 
   let voices = [];
+  const ENGLISH_RATE_MULTIPLIER = 1.05;
+  const SPANISH_RATE_MULTIPLIER = 0.82;
 
   function refreshVoices() {
     if (!("speechSynthesis" in global)) return [];
@@ -38,6 +40,14 @@
     });
   }
 
+  function getRequestedRate(options, fallbackRate) {
+    return options && typeof options.rate === "number" ? options.rate : fallbackRate;
+  }
+
+  function calibrateRate(rate, multiplier) {
+    return Math.max(0.1, Math.min(2, rate * multiplier));
+  }
+
   function stopSpeaking() {
     if ("speechSynthesis" in global) {
       global.speechSynthesis.cancel();
@@ -45,14 +55,13 @@
   }
 
   async function speakEnglish(text, options) {
-    const rate = options && typeof options.rate === "number" ? options.rate : 0.96;
+    const rate = calibrateRate(getRequestedRate(options, 0.96), ENGLISH_RATE_MULTIPLIER);
     return speakText(text, ["en-US", "en"], rate);
   }
 
   async function speakSpanish(text, options) {
-    const rate = options && typeof options.rate === "number"
-      ? options.rate
-      : options && options.slow ? 0.68 : 0.86;
+    const fallbackRate = options && options.slow ? 0.68 : 0.86;
+    const rate = calibrateRate(getRequestedRate(options, fallbackRate), SPANISH_RATE_MULTIPLIER);
     return speakText(text, ["es-ES", "es-MX", "es"], rate);
   }
 
